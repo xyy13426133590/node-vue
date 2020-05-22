@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>node.js编写接口</title>
+    <!-- element-ui 的样式表文件 -->
+    <link rel="stylesheet" href="https://cdn.bootcss.com/element-ui/2.12.0/theme-chalk/index.css" />
+    <script src="https://cdn.staticfile.org/vue/2.5.22/vue.min.js"></script>
+    <script src="https://cdn.staticfile.org/vue-router/3.0.1/vue-router.min.js"></script>
+    <script src="https://cdn.staticfile.org/axios/0.18.0/axios.min.js"></script>
+    <script src="https://cdn.bootcss.com/jquery/3.4.1/jquery.min.js"></script>
+    <!-- element-ui 的 js 文件 -->
+    <script src="https://cdn.staticfile.org/element-ui/2.12.0/index.js"></script>
+    <style>
+        .el-header {
+            background-color: #283a50;
+            display: flex;
+            justify-content: space-between;
+            padding-left: 0;
+            align-items: center;
+            color: #fff;
+            font-size: 20px;
+        }
+
+        .el-header div {
+            display: flex;
+            align-items: center;
+        }
+
+        .el-header span {
+            margin-left: 15px;
+        }
+
+        .el-main {
+            background-color: #eaedfa;
+            min-height: 650px;
+        }
+
+        .add {
+            display: block;
+            width: 200px;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+
+<body>
+<div id="app">
+    <el-header>
+        <div>
+            <img src="http://qkongtao.cn/wp-content/uploads/2020/02/logo1.fa9c5aaa.png" width="60px"
+                 height="60px" />
+            <span>简单的增删改查</span>
+        </div>
+    </el-header>
+    <!-- 页面主题区域 -->
+    <el-container>
+        <!-- 内容主体 -->
+        <el-main>
+            <el-button type="primary" @click="showAddDialog" class="add">添加用户</el-button>
+            <el-table :data="userList" border stripe>
+                <el-table-column type="index"></el-table-column>
+                <el-table-column label="姓名" prop="username"></el-table-column>
+                <el-table-column label="性别" prop="sex"></el-table-column>
+                <el-table-column label="地址" prop="address"></el-table-column>
+                <el-table-column label="操作">
+                    <template slot-scope="scope">
+                        <!-- 修改按钮 -->
+                        <el-tooltip class="item" effect="dark" content="修改用户" placement="top" :enterable="false">
+                            <el-button type="primary" icon="el-icon-edit" size="mini"
+                                       @click="showEditDialog(scope.row.id)"></el-button>
+                        </el-tooltip>
+                        <!-- 删除按钮 -->
+                        <el-tooltip class="item" effect="dark" content="删除用户" placement="top" :enterable="false">
+                            <el-button type="danger" icon="el-icon-delete" size="mini"
+                                       @click="removeUserById(scope.row.id)"></el-button>
+                        </el-tooltip>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </el-main>
+    </el-container>
+    <!-- 添加用户的对话框 -->
+    <el-dialog title="添加用户" :visible.sync="addDialogVisible" width="50%" @close="addDialogClosed">
+        <!-- 内容主题区域 -->
+        <el-form :model="addForm" :rules="addFormRules" ref="addFormRef" label-width="70px">
+            <el-form-item label="用户名" prop="username">
+                <el-input v-model="addForm.username"></el-input>
+            </el-form-item>
+            <el-form-item label="性别" prop="sex">
+                <el-input v-model="addForm.sex"></el-input>
+            </el-form-item>
+            <el-form-item label="地址" prop="address">
+                <el-input v-model="addForm.address"></el-input>
+            </el-form-item>
+        </el-form>
+        <!-- 底部区域 -->
+        <span slot="footer" class="dialog-footer">
+                <el-button @click="addDialogVisible = false">取 消</el-button>
+                <el-button type="primary" @click="adduser">确 定</el-button>
+            </span>
+    </el-dialog>
+    <!-- 修改用户对话框 -->
+    <el-dialog title="修改用户" :visible.sync="editDialogVisible" width="50%" @close="editDialogClosed">
+        <!-- 内容主题区域 -->
+        <el-form :model="editForm" :rules="editFormRules" ref="editFormRef" label-width="70px">
+            <el-form-item label="用户名">
+                <el-input v-model="editForm.username" disabled></el-input>
+            </el-form-item>
+            <el-form-item label="性别" prop="sex">
+                <el-input v-model="editForm.sex"></el-input>
+            </el-form-item>
+            <el-form-item label="地址" prop="address">
+                <el-input v-model="editForm.address"></el-input>
+            </el-form-item>
+        </el-form>
+        <span slot="footer" class="dialog-footer">
+                <el-button @click="editDialogVisible = false">取 消</el-button>
+                <el-button type="primary" @click="editUser">确 定</el-button>
+            </span>
+    </el-dialog>
+</div>
+</body>
+<script>
+    axios.defaults.baseURL = 'http://localhost:3000/api/'
+    Vue.prototype.$http = axios
+
+    var vm = new Vue({
+        el: '#app',
+        data: {
+            //全部数据列表
+            userList: [],
+            addDialogVisible: false,
+            addForm: {
+                username: '',
+                sex: '',
+                address: ''
+            },
+            addFormRules: {
+                username: [{
+                    required: true,
+                    message: '请输入姓名',
+                    tirgger: 'blur'
+                }],
+                sex: [{
+                    required: true,
+                    message: '请输入性别',
+                    tirgger: 'blur'
+                }],
+                address: [{
+                    required: true,
+                    message: '请输入地址',
+                    tirgger: 'blur'
+                }],
+            },
+            editDialogVisible: false,
+            editForm: {
+                username: '',
+                sex: '',
+                address: ''
+            },
+            editFormRules: {
+                username: [{
+                    required: true,
+                    message: '请输入姓名',
+                    tirgger: 'blur'
+                }],
+                sex: [{
+                    required: true,
+                    message: '请输入性别',
+                    tirgger: 'blur'
+                }],
+                address: [{
+                    required: true,
+                    message: '请输入地址',
+                    tirgger: 'blur'
+                }],
+            },
+
+
+
+        },
+        created() {
+            this.getUserList()
+        },
+        methods: {
+            async getUserList() {
+                const {data: res} = await this.$http.get('getUserList')
+                console.log(res);
+                this.userList = res.message
+            },
+            showAddDialog() {
+                this.addDialogVisible = true
+            },
+            async showEditDialog(id) {
+                const {data: res} = await this.$http.get('getUserListById/' + id)
+                if (res.code != 200) {
+                    return this.$message.error('查询用户信息失败！')
+                }
+                this.editForm = res.message[0]
+                this.editDialogVisible = true
+            },
+            adduser() {
+                this.$refs.addFormRef.validate(async valid => {
+                    if (!valid) return
+                    //可以发起添加用户的网络请求
+                    const {data: res} = await this.$http.post('addUser', this.addForm)
+                    console.log('res :', res);
+                    if (res.code != 200) {
+                        return this.$message.error('添加用户失败！')
+                    }
+                    this.$message.success('添加用户成功！')
+                    // 隐藏添加用户的对话框
+                    this.addDialogVisible = false
+                    //重新获取用户列表数据
+                    this.getUserList()
+                })
+            },
+            editUser() {
+                this.$refs.editFormRef.validate(async valid => {
+                    if (!valid) return
+                    //可以发起添加用户的网络请求
+                    const {data: res} = await this.$http.post('updateUser', this.editForm)
+                    console.log('res :', res);
+                    if (res.code != 200) {
+                        return this.$message.error('修改用户失败！')
+                    }
+                    this.$message.success('修改用户成功！')
+                    // 隐藏添加用户的对话框
+                    this.editDialogVisible = false
+                    //重新获取用户列表数据
+                    this.getUserList()
+                })
+            },
+            addDialogClosed() {
+                //对话框关闭后自动重置
+                this.$refs.addFormRef.resetFields()
+            },
+            editDialogClosed() {
+                //对话框关闭后自动重置
+                this.$refs.editFormRef.resetFields()
+            },
+            async removeUserById(id) {
+                //弹框询问是否删除
+                const confirmResult = await this.$confirm('此操作将永久删除该用户, 是否继续?', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }
+                ).catch(err => {
+                    return err
+                })
+                //如果用户确认删除，则返回值为字符串confirm
+                //如果用户取消了删除，则返回值为字符串cancel
+                // console.log(confirmResult);
+                if (confirmResult === 'cancel') {
+                    return this.$message.info('已经取消了删除')
+                }
+                const {data: res} = await this.$http.delete('deleteUser/' + id)
+                if (res.code != 200) {
+                    return this.$message.error('删除用户失败！')
+                }
+                this.$message.success('删除用户成功！')
+                this.getUserList()
+            },
+        },
+    })
+</script>
+
+</html>
